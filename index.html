@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Longseas International — Operations Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ocean:   #0B1F3A; --ocean-2: #102848; --ocean-3: #1a3a5c;
+    --water:   #00B4D8; --water-lt:#E0F7FC;
+    --surface: #F7F9FB; --card: #FFFFFF;
+    --text:    #0B1F3A; --muted: #6B7A8D; --border: #E2E8F0;
+    --green:   #22C55E; --green-lt:#DCFCE7;
+    --amber:   #F59E0B; --amber-lt:#FEF3C7;
+    --red:     #EF4444; --red-lt:#FEE2E2;
+    --radius:  12px;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header { background: var(--ocean); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--ocean-3); }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark { width: 32px; height: 32px; background: var(--water); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 14px; }
+  .logo-text { color: white; font-weight: 600; font-size: 15px; }
+  .logo-sub { color: rgba(255,255,255,0.4); font-size: 12px; margin-left: 4px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .header-meta { color: rgba(255,255,255,0.4); font-size: 12px; }
+  .refresh-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; transition: all .2s; }
+  .refresh-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+
+  /* LOADING */
+  #loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--water); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--muted); font-size: 14px; }
+
+  /* ERROR */
+  #error-state { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 12px; text-align: center; padding: 2rem; }
+  .error-icon { font-size: 40px; }
+  .error-title { font-size: 18px; font-weight: 600; color: var(--red); }
+  .error-msg { font-size: 13px; color: var(--muted); max-width: 480px; line-height: 1.6; }
+
+  /* HERO */
+  .hero { background: var(--ocean); padding: 3rem 2rem 2.5rem; color: white; }
+  .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--water); margin-bottom: .5rem; }
+  .hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(1.8rem,4vw,2.8rem); font-weight: 700; line-height: 1.15; margin-bottom: .5rem; }
+  .hero-sub { color: rgba(255,255,255,.5); font-size: 14px; margin-bottom: 2.5rem; }
+
+  /* FLOW */
+  .flow { display: flex; align-items: stretch; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: var(--radius); overflow: hidden; }
+  .flow-node { flex: 1; padding: 1.25rem 1.5rem; }
+  .flow-node + .flow-node { border-left: 1px solid rgba(255,255,255,.08); }
+  .flow-arrow { width: 40px; display: flex; align-items: center; justify-content: center; color: var(--water); font-size: 18px; flex-shrink: 0; border-left: 1px solid rgba(255,255,255,.08); background: rgba(0,180,216,.05); }
+  .flow-label { font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 4px; }
+  .flow-entity { font-size: 15px; font-weight: 600; color: white; margin-bottom: 2px; }
+  .flow-loc { font-size: 11px; color: rgba(255,255,255,.35); }
+  .flow-amount { margin-top: .75rem; font-size: 22px; font-weight: 700; color: var(--water); }
+  .flow-amount-label { font-size: 11px; color: rgba(255,255,255,.4); }
+
+  /* MAIN */
+  .container { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+  #main-content { display: none; }
+
+  /* SECTION */
+  .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 1.25rem; }
+  .section-title { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+  .section-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+  .badge-buy { background: var(--water-lt); color: #0077A8; }
+  .badge-sell { background: var(--green-lt); color: #15803D; }
+  .badge-margin { background: var(--amber-lt); color: #92400E; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px,1fr)); gap: 14px; margin-bottom: 2.5rem; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .kpi.buy::before { background: var(--water); }
+  .kpi.sell::before { background: var(--green); }
+  .kpi.margin::before { background: var(--amber); }
+  .kpi.neutral::before { background: var(--muted); }
+  .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .kpi-value.buy { color: #0077A8; }
+  .kpi-value.sell { color: #15803D; }
+  .kpi-value.margin { color: var(--amber); }
+  .kpi-sub { font-size: 11px; color: var(--muted); }
+
+  /* TABLES */
+  .table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 2.5rem; }
+  .table-card-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .table-card-title { font-size: 14px; font-weight: 600; }
+  .table-card-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #F8FAFC; }
+  th.right, td.right { text-align: right; }
+  th.center, td.center { text-align: center; }
+  th.gh-buy { background: var(--water-lt); color: #005F87; border-bottom: 1px solid #BAE6FD; text-align: center; }
+  th.gh-sell { background: var(--green-lt); color: #15803D; border-bottom: 1px solid #BBF7D0; text-align: center; }
+  th.gh-margin { background: var(--amber-lt); color: #92400E; border-bottom: 1px solid #FDE68A; text-align: center; }
+  .divider-col { border-left: 1px solid var(--border); }
+  .pi-num { font-weight: 600; font-family: monospace; font-size: 12px; }
+  .product-tag { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .b-pending   { background: var(--amber-lt); color: #92400E; }
+  .b-confirmed { background: var(--water-lt); color: #0077A8; }
+  .b-paid      { background: var(--green-lt); color: #15803D; }
+  .b-shipped   { background: #EDE9FE; color: #5B21B6; }
+  .num { font-variant-numeric: tabular-nums; }
+  .strong { font-weight: 600; }
+  .pos { color: #15803D; font-weight: 600; }
+  .neg { color: var(--red); font-weight: 600; }
+  .water-col { color: #0077A8; font-weight: 600; }
+  .total-row td { background: var(--surface); font-weight: 700; border-top: 2px solid var(--border); }
+  .empty-row td { text-align: center; padding: 2rem; color: var(--muted); font-size: 13px; }
+
+  footer { background: var(--ocean); color: rgba(255,255,255,.3); text-align: center; padding: 1.5rem; font-size: 11px; margin-top: 1rem; }
+
+  @media (max-width: 768px) {
+    .flow { flex-direction: column; }
+    .flow-arrow { width: 100%; height: 32px; border-left: none; border-top: 1px solid rgba(255,255,255,.08); }
+    .container { padding: 1.25rem; }
+    .hero { padding: 2rem 1.25rem; }
+    .kpis { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">LS</div>
+    <span class="logo-text">Longseas International</span>
+    <span class="logo-sub">/ Operations</span>
+  </div>
+  <div class="header-right">
+    <span class="header-meta" id="last-updated"></span>
+    <button class="refresh-btn" onclick="loadData()">⟳ Refresh</button>
+  </div>
+</header>
+
+<!-- LOADING -->
+<div id="loading-state">
+  <div class="spinner"></div>
+  <div class="loading-text">Loading data from Google Sheets…</div>
+</div>
+
+<!-- ERROR -->
+<div id="error-state">
+  <div class="error-icon">⚠️</div>
+  <div class="error-title">Could not load data</div>
+  <div class="error-msg" id="error-msg">Check that the Google Sheet is published and the URLs are correct.</div>
+</div>
+
+<!-- HERO (always visible as shell) -->
+<div class="hero" id="hero-section" style="display:none;">
+  <div class="container" style="padding-top:0;padding-bottom:0;">
+    <p class="hero-eyebrow">Seafood Import Operations</p>
+    <h1>From Ecuador<br>to the U.S. Market</h1>
+    <p class="hero-sub">Live data from Google Sheets · purchases from Ecuadorian suppliers, sales to U.S. distributors.</p>
+    <div class="flow">
+      <div class="flow-node">
+        <div class="flow-label">Supplier</div>
+        <div class="flow-entity">Expalsa / Allseas</div>
+        <div class="flow-loc">Guayaquil, Ecuador</div>
+        <div class="flow-amount" id="flow-cost">—</div>
+        <div class="flow-amount-label" id="flow-cost-sub">Loading…</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="flow-label">Importer</div>
+        <div class="flow-entity">Longseas International</div>
+        <div class="flow-loc">Coral Gables, FL</div>
+        <div class="flow-amount" style="color:var(--amber);" id="flow-margin">—</div>
+        <div class="flow-amount-label" id="flow-margin-sub">Loading…</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="flow-label">Customer</div>
+        <div class="flow-entity">Plaza Distribution Inc.</div>
+        <div class="flow-loc">Stockton, CA</div>
+        <div class="flow-amount" style="color:#22C55E;" id="flow-revenue">—</div>
+        <div class="flow-amount-label" id="flow-revenue-sub">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main-content">
+<div class="container">
+
+  <!-- KPIs -->
+  <div style="margin:2rem 0 1.25rem;">
+    <div class="section-head"><span class="section-title">Key Metrics</span><div class="section-line"></div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi buy"><div class="kpi-label">Total Purchased</div><div class="kpi-value buy" id="kpi-purchased">—</div><div class="kpi-sub" id="kpi-purchased-sub">—</div></div>
+    <div class="kpi sell"><div class="kpi-label">Total Sales</div><div class="kpi-value sell" id="kpi-sales">—</div><div class="kpi-sub" id="kpi-sales-sub">—</div></div>
+    <div class="kpi margin"><div class="kpi-label">Gross Margin</div><div class="kpi-value margin" id="kpi-margin">—</div><div class="kpi-sub" id="kpi-margin-sub">—</div></div>
+    <div class="kpi neutral"><div class="kpi-label">Avg. Buy Price</div><div class="kpi-value" style="color:var(--ocean);" id="kpi-buy-price">—</div><div class="kpi-sub" id="kpi-buy-price-sub">—</div></div>
+    <div class="kpi neutral"><div class="kpi-label">Avg. Sell Price</div><div class="kpi-value" style="color:var(--ocean);" id="kpi-sell-price">—</div><div class="kpi-sub" id="kpi-sell-price-sub">—</div></div>
+    <div class="kpi neutral"><div class="kpi-label">Total Lbs Purchased</div><div class="kpi-value" style="color:var(--ocean);" id="kpi-lbs">—</div><div class="kpi-sub" id="kpi-lbs-sub">—</div></div>
+    <div class="kpi neutral"><div class="kpi-label">Pending PIs</div><div class="kpi-value" style="color:var(--amber);" id="kpi-pending">—</div><div class="kpi-sub">Orders awaiting confirmation</div></div>
+  </div>
+
+  <!-- PURCHASES TABLE -->
+  <div class="section-head">
+    <span class="section-title">Purchases</span>
+    <span class="section-badge badge-buy">Expalsa → Longseas</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="table-card" style="margin-bottom:2.5rem;">
+    <div class="table-card-header">
+      <div>
+        <div class="table-card-title">Purchase Orders from Supplier</div>
+        <div class="table-card-sub">Supplier invoices — shrimp purchased for import into the United States</div>
+      </div>
+      <span class="badge b-pending" id="purchases-count-badge">—</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>PI #</th><th>Date</th><th>Supplier</th><th>Product</th><th>Size</th>
+            <th class="right">Masters</th><th class="right">Lbs (Net)</th><th class="right">Kg (Net)</th>
+            <th class="right">Price / lb</th><th class="right">Total USD</th>
+            <th>Destination</th><th>Terms</th><th>ETD</th><th class="center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="purchases-tbody">
+          <tr class="empty-row"><td colspan="14">Loading purchases…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SALES TABLE -->
+  <div class="section-head">
+    <span class="section-title">Sales</span>
+    <span class="section-badge badge-sell">Allseas / Longseas → Plaza Distribution</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="table-card" style="margin-bottom:2.5rem;">
+    <div class="table-card-header">
+      <div>
+        <div class="table-card-title">Sale Orders to Customer</div>
+        <div class="table-card-sub">Customer invoices — shrimp sold DDP to U.S. distributors</div>
+      </div>
+      <span class="badge b-paid" id="sales-count-badge">—</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>PI #</th><th>Date</th><th>Seller</th><th>Customer</th><th>Product</th><th>Size</th>
+            <th class="right">Boxes</th><th class="right">Lbs (Net)</th><th class="right">Lbs/Box</th>
+            <th class="right">Glaze</th><th>Pack</th>
+            <th class="right">Price / lb</th><th class="right">Total USD</th>
+            <th>Destination</th><th>Terms</th><th>ETD</th><th>Payment Terms</th><th class="center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="sales-tbody">
+          <tr class="empty-row"><td colspan="18">Loading sales…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PROFITABILITY TABLE -->
+  <div class="section-head">
+    <span class="section-title">Profitability</span>
+    <span class="section-badge badge-margin">Purchase vs. Sale</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="table-card">
+    <div class="table-card-header">
+      <div>
+        <div class="table-card-title">Margin Analysis — Linked Operations</div>
+        <div class="table-card-sub">Automatically matched by PI number sequence · purchase ↔ sale</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" style="vertical-align:bottom;">PI Purchase</th>
+            <th rowspan="2" style="vertical-align:bottom;">PI Sale</th>
+            <th rowspan="2" style="vertical-align:bottom;">Product</th>
+            <th rowspan="2" style="vertical-align:bottom;">Size</th>
+            <th colspan="3" class="gh-buy">PURCHASE (Supplier)</th>
+            <th colspan="3" class="gh-sell">SALE (Customer)</th>
+            <th colspan="3" class="gh-margin">MARGIN</th>
+          </tr>
+          <tr>
+            <th class="right gh-buy">Lbs bought</th>
+            <th class="right gh-buy">Price / lb</th>
+            <th class="right gh-buy">Total cost</th>
+            <th class="right gh-sell divider-col">Lbs sold</th>
+            <th class="right gh-sell">Price / lb</th>
+            <th class="right gh-sell">Total sale</th>
+            <th class="right gh-margin divider-col">$ Margin</th>
+            <th class="right gh-margin">% Margin</th>
+            <th class="right gh-margin">$ / lb</th>
+          </tr>
+        </thead>
+        <tbody id="margin-tbody">
+          <tr class="empty-row"><td colspan="13">Loading margin data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /main-content -->
+
+<footer>
+  <p>Longseas International Inc. · Operations Dashboard · Confidential</p>
+  <p style="margin-top:4px;" id="footer-date"></p>
+</footer>
+
+<script>
+const PURCHASES_URL = 'https://corsproxy.io/?https://docs.google.com/spreadsheets/d/e/2PACX-1vRePv5Iz7M2cEwTNkQ4lWVMB6ztehjI1PROAR23sbxxBtbGKZ8CGMcipD7K8Mp8lNgCefgvvW_eadQZ/pub?gid=0&single=true&output=csv';
+const SALES_URL     = 'https://corsproxy.io/?https://docs.google.com/spreadsheets/d/e/2PACX-1vRePv5Iz7M2cEwTNkQ4lWVMB6ztehjI1PROAR23sbxxBtbGKZ8CGMcipD7K8Mp8lNgCefgvvW_eadQZ/pub?gid=311229417&single=true&output=csv';
+
+// ── CSV PARSER ──────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (let c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else { cur += c; }
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').replace(/^"|"$/g,'').trim());
+    return obj;
+  }).filter(r => Object.values(r).some(v => v !== ''));
+}
+
+// ── FORMATTERS ──────────────────────────────────────────────
+const fmtUSD  = n => isNaN(n) ? '—' : '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtNum  = n => isNaN(n) ? '—' : Number(n).toLocaleString('en-US');
+const fmtLb   = n => isNaN(n) ? '—' : '$' + Number(n).toFixed(3);
+const clean   = v => (v||'').replace(/[$,]/g,'');
+const num     = v => parseFloat(clean(v)) || 0;
+
+function statusBadge(s) {
+  const map = { pending:'b-pending', confirmed:'b-confirmed', paid:'b-paid', shipped:'b-shipped' };
+  const cls = map[(s||'').toLowerCase()] || 'b-pending';
+  return `<span class="badge ${cls}">${s || 'Pending'}</span>`;
+}
+
+// ── RENDER PURCHASES ────────────────────────────────────────
+function renderPurchases(rows) {
+  const tbody = document.getElementById('purchases-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="14">No purchase orders found in Google Sheets.</td></tr>';
+    return { total:0, lbs:0, count:0, pending:0 };
+  }
+  let total = 0, lbs = 0, pending = 0;
+  tbody.innerHTML = rows.map(r => {
+    const t = num(r.TOTAL_USD);
+    const l = num(r.LBS_NET);
+    total += t; lbs += l;
+    if ((r.STATUS||'pending').toLowerCase() === 'pending') pending++;
+    return `<tr>
+      <td><span class="pi-num">${r.PI_NUMBER||'—'}</span></td>
+      <td class="num">${r.DATE||'—'}</td>
+      <td>${r.SUPPLIER||'—'}</td>
+      <td><span class="product-tag">🦐 ${r.PRODUCT||'—'}</span></td>
+      <td class="num strong">${r.SIZE||'—'}</td>
+      <td class="right num">${fmtNum(num(r.MASTERS))}</td>
+      <td class="right num">${fmtNum(l)}</td>
+      <td class="right num">${fmtNum(num(r.KG_NET))}</td>
+      <td class="right num water-col">${fmtLb(num(r.PRICE_LB))}</td>
+      <td class="right num strong">${fmtUSD(t)}</td>
+      <td>${r.DESTINATION||'—'}</td>
+      <td>${r.TERMS||'—'}</td>
+      <td class="num">${r.ETD||'—'}</td>
+      <td class="center">${statusBadge(r.STATUS)}</td>
+    </tr>`;
+  }).join('');
+
+  // Total row
+  tbody.innerHTML += `<tr class="total-row">
+    <td colspan="6" class="strong">TOTAL — ${rows.length} Purchase Order${rows.length!==1?'s':''}</td>
+    <td class="right num strong">${fmtNum(lbs)} lbs</td>
+    <td colspan="2"></td>
+    <td class="right num water-col strong">${fmtUSD(total)}</td>
+    <td colspan="4"></td>
+  </tr>`;
+
+  document.getElementById('purchases-count-badge').textContent = rows.length + ' Order' + (rows.length!==1?'s':'');
+  return { total, lbs, count: rows.length, pending };
+}
+
+// ── RENDER SALES ────────────────────────────────────────────
+function renderSales(rows) {
+  const tbody = document.getElementById('sales-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="18">No sale orders found in Google Sheets.</td></tr>';
+    return { total:0, lbs:0, count:0, pending:0 };
+  }
+  let total = 0, lbs = 0, pending = 0;
+  tbody.innerHTML = rows.map(r => {
+    const t = num(r.TOTAL_USD);
+    const l = num(r.LBS_NET);
+    total += t; lbs += l;
+    if ((r.STATUS||'pending').toLowerCase() === 'pending') pending++;
+    return `<tr>
+      <td><span class="pi-num">${r.PI_NUMBER||'—'}</span></td>
+      <td class="num">${r.DATE||'—'}</td>
+      <td>${r.SELLER||'—'}</td>
+      <td>${r.CUSTOMER||'—'}</td>
+      <td><span class="product-tag">🦐 ${r.PRODUCT||'—'}</span></td>
+      <td class="num strong">${r.SIZE||'—'}</td>
+      <td class="right num">${fmtNum(num(r.BOXES))}</td>
+      <td class="right num">${fmtNum(l)}</td>
+      <td class="right num">${r.LBS_BOX||'—'}</td>
+      <td class="right">${r.GLAZE||'—'}</td>
+      <td>${r.PACK||'—'}</td>
+      <td class="right num pos">${fmtLb(num(r.PRICE_LB))}</td>
+      <td class="right num strong">${fmtUSD(t)}</td>
+      <td>${r.DESTINATION||'—'}</td>
+      <td>${r.TERMS||'—'}</td>
+      <td class="num">${r.ETD||'—'}</td>
+      <td>${r.PAYMENT_TERMS||'—'}</td>
+      <td class="center">${statusBadge(r.STATUS)}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.innerHTML += `<tr class="total-row">
+    <td colspan="7" class="strong">TOTAL — ${rows.length} Sale Order${rows.length!==1?'s':''}</td>
+    <td class="right num strong">${fmtNum(lbs)} lbs</td>
+    <td colspan="4"></td>
+    <td class="right num pos strong">${fmtUSD(total)}</td>
+    <td colspan="5"></td>
+  </tr>`;
+
+  document.getElementById('sales-count-badge').textContent = rows.length + ' Order' + (rows.length!==1?'s':'');
+  return { total, lbs, count: rows.length, pending };
+}
+
+// ── RENDER MARGIN ────────────────────────────────────────────
+function renderMargin(purchases, sales) {
+  const tbody = document.getElementById('margin-tbody');
+  const pairs = Math.min(purchases.length, sales.length);
+  if (!pairs) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Add data to both PURCHASES and SALES sheets to see margin analysis.</td></tr>';
+    return;
+  }
+  let totCost = 0, totSale = 0;
+  let rows = '';
+  for (let i = 0; i < pairs; i++) {
+    const b = purchases[i], s = sales[i];
+    const cost = num(b.TOTAL_USD), sale = num(s.TOTAL_USD);
+    const margin = sale - cost;
+    const pct = cost > 0 ? (margin / cost * 100) : 0;
+    const perLb = num(b.LBS_NET) > 0 ? margin / num(b.LBS_NET) : 0;
+    totCost += cost; totSale += sale;
+    const cls = margin >= 0 ? 'pos' : 'neg';
+    rows += `<tr>
+      <td><span class="pi-num">${b.PI_NUMBER||'—'}</span></td>
+      <td><span class="pi-num">${s.PI_NUMBER||'—'}</span></td>
+      <td><span class="product-tag">🦐 ${b.PRODUCT||'—'}</span></td>
+      <td class="strong">${b.SIZE||'—'}</td>
+      <td class="right num">${fmtNum(num(b.LBS_NET))}</td>
+      <td class="right num water-col">${fmtLb(num(b.PRICE_LB))}</td>
+      <td class="right num strong">${fmtUSD(cost)}</td>
+      <td class="right num divider-col">${fmtNum(num(s.LBS_NET))}</td>
+      <td class="right num pos">${fmtLb(num(s.PRICE_LB))}</td>
+      <td class="right num strong">${fmtUSD(sale)}</td>
+      <td class="right num ${cls} divider-col">${fmtUSD(margin)}</td>
+      <td class="right num ${cls}">${pct.toFixed(1)}%</td>
+      <td class="right num ${cls}">$${perLb.toFixed(3)}</td>
+    </tr>`;
+  }
+  const totMargin = totSale - totCost;
+  const totPct = totCost > 0 ? (totMargin / totCost * 100) : 0;
+  rows += `<tr class="total-row">
+    <td colspan="4" class="strong">TOTAL — ${pairs} Operation${pairs!==1?'s':''}</td>
+    <td colspan="2"></td>
+    <td class="right num water-col strong">${fmtUSD(totCost)}</td>
+    <td colspan="2" class="divider-col"></td>
+    <td class="right num pos strong">${fmtUSD(totSale)}</td>
+    <td class="right num pos strong divider-col">${fmtUSD(totMargin)}</td>
+    <td class="right num pos strong">${totPct.toFixed(1)}%</td>
+    <td></td>
+  </tr>`;
+  tbody.innerHTML = rows;
+}
+
+// ── UPDATE KPIs & FLOW ──────────────────────────────────────
+function updateKPIs(p, s) {
+  const margin = s.total - p.total;
+  const marginPct = p.total > 0 ? (margin / p.total * 100) : 0;
+  const avgBuy  = p.lbs > 0 ? p.total / p.lbs : 0;
+  const avgSell = s.lbs > 0 ? s.total / s.lbs : 0;
+
+  document.getElementById('kpi-purchased').textContent    = fmtUSD(p.total);
+  document.getElementById('kpi-purchased-sub').textContent = `${p.count} purchase order${p.count!==1?'s':''} · Expalsa`;
+  document.getElementById('kpi-sales').textContent         = fmtUSD(s.total);
+  document.getElementById('kpi-sales-sub').textContent     = `${s.count} sale order${s.count!==1?'s':''} · Plaza Dist.`;
+  document.getElementById('kpi-margin').textContent        = fmtUSD(margin);
+  document.getElementById('kpi-margin-sub').textContent    = `${marginPct.toFixed(1)}% over cost`;
+  document.getElementById('kpi-buy-price').textContent     = '$' + avgBuy.toFixed(3) + '/lb';
+  document.getElementById('kpi-buy-price-sub').textContent = 'Weighted average';
+  document.getElementById('kpi-sell-price').textContent    = '$' + avgSell.toFixed(3) + '/lb';
+  document.getElementById('kpi-sell-price-sub').textContent= 'Weighted average';
+  document.getElementById('kpi-lbs').textContent           = fmtNum(p.lbs) + ' lbs';
+  document.getElementById('kpi-lbs-sub').textContent       = `${p.count} container${p.count!==1?'s':''}`;
+  document.getElementById('kpi-pending').textContent       = p.pending + s.pending;
+
+  // flow
+  document.getElementById('flow-cost').textContent       = fmtUSD(p.total);
+  document.getElementById('flow-cost-sub').textContent   = `Total purchased · ${p.count} PI${p.count!==1?'s':''}`;
+  document.getElementById('flow-margin').textContent     = fmtUSD(margin);
+  document.getElementById('flow-margin-sub').textContent = `Gross margin · ${marginPct.toFixed(1)}%`;
+  document.getElementById('flow-revenue').textContent    = fmtUSD(s.total);
+  document.getElementById('flow-revenue-sub').textContent= `Total sold · ${s.count} PI${s.count!==1?'s':''}`;
+}
+
+// ── MAIN LOAD ───────────────────────────────────────────────
+async function loadData() {
+  document.getElementById('loading-state').style.display = 'flex';
+  document.getElementById('error-state').style.display   = 'none';
+  document.getElementById('main-content').style.display  = 'none';
+  document.getElementById('hero-section').style.display  = 'none';
+
+  try {
+    const [pRes, sRes] = await Promise.all([
+      fetch(PURCHASES_URL + '&t=' + Date.now()),
+      fetch(SALES_URL     + '&t=' + Date.now())
+    ]);
+    if (!pRes.ok || !sRes.ok) throw new Error('HTTP error fetching sheets.');
+    const [pText, sText] = await Promise.all([pRes.text(), sRes.text()]);
+    const purchases = parseCSV(pText);
+    const sales     = parseCSV(sText);
+
+    const pStats = renderPurchases(purchases);
+    const sStats = renderSales(sales);
+    renderMargin(purchases, sales);
+    updateKPIs(pStats, sStats);
+
+    const now = new Date();
+    document.getElementById('last-updated').textContent = 'Updated ' + now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('footer-date').textContent  = 'Generated ' + now.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('hero-section').style.display  = 'block';
+    document.getElementById('main-content').style.display  = 'block';
+
+  } catch (err) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display   = 'flex';
+    document.getElementById('error-msg').textContent = 'Error: ' + err.message + ' — Make sure the Google Sheet is published as CSV and accessible publicly.';
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
